@@ -1,0 +1,5 @@
+* Minibuffer Music Player Client
+** Usage
+This Emacs Lisp file defines commands to interact with an MPD instance.  It allows you to add files to the playlist, clear the playlist, start/pause playback, etc without the need for any buffers except the minibuffer.  This of course means that features like elaborate playlist editing cannot be implemented.  This restriction however allows the interface to be as minimal as it is.  For now, see the code for further documentation.  It is not much code and should be more or less self-explanatory.
+** Installation
+Just load mmpc.el into Emacs and start using it.  It uses [[http://mpd.wikia.com/wiki/Client:Libmpdee][libmpdee]] to interact with MPD, so you need this library as well.  The libmpdee SVN repository seems to have vanished, but you can get it [[https://github.com/pft/mingus/blob/master/libmpdee.el][here]] from the Mingus repository.

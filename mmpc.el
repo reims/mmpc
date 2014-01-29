@@ -46,8 +46,8 @@ disconnected and a command is executed."
        (port (or port 6600)))
    (when mmpc-connection
        (ignore-errors
-	 (mpd-close-connection mmpc-connection "")))
-   (setq mmpc-connection (mpd-conn-new host port 0.0))))
+	 (mpd-close-connection mmpc-connection)))
+   (setq mmpc-connection (mpd-conn-new host port 0))))
 
 (defmacro when-mmpc-connected (&rest body)
   "Evaluate BODY in a `progn' if mmpc is connected. 
@@ -64,7 +64,7 @@ Print \"not connected to mpd\" otherwise."
     (mpd-play mmpc-connection)))
 
 (defun mmpc-pause ()
-  "Pause mpd mplayback."
+  "Pause mpd playback."
   (interactive)
   (when-mmpc-connected
     (mpd-pause mmpc-connection)))
@@ -104,7 +104,8 @@ Print \"not connected to mpd\" otherwise."
 				(cl-ecase type
 				  ('file (setf result (cons (plist-get object 'file) result)))
 				  ('directory (setf result (cons object result)))
-				  ('playlist nil)))))
+				  ('playlist nil))))
+      (message nil)) ; to suppress the "connected to mpd" message
     result))
 
 (defun mmpc-clear-playlist ()
@@ -137,9 +138,8 @@ This is equivalent to calling `mmpc-add-files' with PATH after
 		     (dynamic-completion-table 'mmpc-path-completion)
 		     nil
 		     t)))
-  (when-mmpc-connected
-    (mmpc-clear-playlist)
-    (mmpc-add-files path)))
+  (mmpc-clear-playlist)
+  (mmpc-add-files path))
 
 (defun mmpc-replace-files-and-play (path)
   "Replace the current playlist with the files in PATH and play them.
@@ -155,5 +155,37 @@ This is equivalent to calling `mmpc-replace-files' with PATH and then
   (mmpc-replace-files path)
   (mmpc-play))
 
+;; thought I could wrap this in a function, but somehow this leads to a strange error:
+;; "error in process filter: invalid function (lambda)"
+;; maybe some strange effect caused by dynamic scope?? No idea.
+;; The error only comes up after the first use.
+;; (defun mmpc-read-pl-pos-by-title (&optional prompt)
+;;   (let* ((prompt (or prompt "Playlist entry:"))
+;; 	 (playlist-entries nil)
+;; 	 (playlist-count 0)
+;; 	 (add-to-entries (lambda (entry)
+;; 			   (setf playlist-entries (cons (cons (plist-get entry 'Title) playlist-count)
+;; 							playlist-entries))
+;; 			   (incf playlist-count))))
+;;     (when-mmpc-connected
+;;       (mpd-get-playlist-entry mmpc-connection nil add-to-entries)
+;;       (let ((chosen-entry (completing-read prompt playlist-entries nil t)))
+;; 	(cdr (assoc chosen-entry playlist-entries))))))
+
+(defun mmpc-play-pl-entry (pos)
+  (interactive
+   (list (let* ((prompt "Playlist entry:")
+		(playlist-entries nil)
+		(playlist-count 0)
+		(add-to-entries (lambda (entry)
+				  (setf playlist-entries (cons (cons (plist-get entry 'Title) playlist-count)
+							       playlist-entries))
+				  (incf playlist-count))))
+	   (when-mmpc-connected
+	     (mpd-get-playlist-entry mmpc-connection nil add-to-entries)
+	     (let ((chosen-entry (completing-read prompt playlist-entries nil t)))
+	       (cdr (assoc chosen-entry playlist-entries)))))))
+  (when-mmpc-connected
+    (mpd-play mmpc-connection pos)))
 
 (provide 'mmpc)

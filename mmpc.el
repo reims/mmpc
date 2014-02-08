@@ -26,6 +26,7 @@
 ;;; Code:
 
 (require 'libmpdee)
+(require 'cl-lib)
 
 (defconst mmpc-version "0.1"
   "mmpc's version")

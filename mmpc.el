@@ -185,4 +185,14 @@ This is equivalent to calling `mmpc-replace-files' with PATH and then
   (when-mmpc-connected
     (mpd-play mmpc-connection pos)))
 
+(defun mmpc-update (&optional path)
+  (interactive
+   (list
+    (completing-read "Path: " 
+		     (dynamic-completion-table 'mmpc-path-completion)
+		     nil
+		     t)))
+  (when-mmpc-connected
+    (mpd-update mmpc-connection path)))
+
 (provide 'mmpc)

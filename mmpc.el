@@ -160,32 +160,28 @@ This is equivalent to calling `mmpc-replace-files' with PATH and then
 ;; "error in process filter: invalid function (lambda)"
 ;; maybe some strange effect caused by dynamic scope?? No idea.
 ;; The error only comes up after the first use.
-;; (defun mmpc-read-pl-pos-by-title (&optional prompt)
-;;   (let* ((prompt (or prompt "Playlist entry:"))
-;; 	 (playlist-entries nil)
-;; 	 (playlist-count 0)
-;; 	 (add-to-entries (lambda (entry)
-;; 			   (setf playlist-entries (cons (cons (plist-get entry 'Title) playlist-count)
-;; 							playlist-entries))
-;; 			   (incf playlist-count))))
-;;     (when-mmpc-connected
-;;       (mpd-get-playlist-entry mmpc-connection nil add-to-entries)
-;;       (let ((chosen-entry (completing-read prompt playlist-entries nil t)))
-;; 	(cdr (assoc chosen-entry playlist-entries))))))
+(defmacro mmpc-read-pl-pos-by-title (&optional prompt-arg)
+  (let ((prompt-value (or prompt-arg "Playlist entry:"))
+	(prompt (gensym))
+	(playlist-entries (gensym))
+	(playlist-count (gensym))
+	(add-to-entries (gensym))
+	(chosen-entry (gensym)))
+    `(let* ((,prompt ,prompt-value)
+	    (,playlist-entries nil)
+	    (,playlist-count 0)
+	    (,add-to-entries (lambda (entry)
+			      (setf ,playlist-entries (cons (cons (plist-get entry 'Title) ,playlist-count)
+							   ,playlist-entries))
+			      (incf ,playlist-count))))
+       (when-mmpc-connected
+	 (mpd-get-playlist-entry mmpc-connection nil ,add-to-entries)
+	 (let ((,chosen-entry (completing-read ,prompt ,playlist-entries nil t)))
+	   (cdr (assoc ,chosen-entry ,playlist-entries)))))))
 
 (defun mmpc-play-pl-entry (pos)
   (interactive
-   (list (let* ((prompt "Playlist entry:")
-		(playlist-entries nil)
-		(playlist-count 0)
-		(add-to-entries (lambda (entry)
-				  (setf playlist-entries (cons (cons (plist-get entry 'Title) playlist-count)
-							       playlist-entries))
-				  (incf playlist-count))))
-	   (when-mmpc-connected
-	     (mpd-get-playlist-entry mmpc-connection nil add-to-entries)
-	     (let ((chosen-entry (completing-read prompt playlist-entries nil t)))
-	       (cdr (assoc chosen-entry playlist-entries)))))))
+   (list (mmpc-read-pl-pos-by-title)))
   (when-mmpc-connected
     (mpd-play mmpc-connection pos)))
 

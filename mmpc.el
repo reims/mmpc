@@ -92,6 +92,75 @@ Print \"not connected to mpd\" otherwise."
   (when-mmpc-connected
     (mpd-prev mmpc-connection)))
 
+(defun mmpc-read-symbol (prompt symbols)
+  "Read one symbol contained in SYMBOLS"
+  (let ((symbol-map (cl-map 'list 
+			    (lambda (s) (cons (symbol-name s) s)) 
+			    symbols))) 
+    (cdr (assoc (completing-read prompt 
+				 symbol-map
+				 nil
+				 t)
+		symbol-map))))
+
+(defconst mmpc-get-entities-methods
+  '(path artist album)
+  "List of symbols representing the different methods to get entities
+  from the mpd db.")
+
+(defun mmpc-read-get-entities-method ()
+  "Read a symbol contained in `mmpc-get-entities-methods'."
+  (mmpc-read-symbol "Get entities by: " mmpc-get-entities-methods))
+
+(defun mmpc-get-all-entries-for-tag (tag)
+  "Return a list containing all entries for tag TAG in the mpd db."
+  (when-mmpc-connected
+    (let ((command-result (mpd-execute-command mmpc-connection (format "list %s" tag))))
+      (when (car command-result)
+	(cl-map 'list 'cdr (cdr command-result))))))
+
+(defun mmpc-get-all-artists ()
+  "Return a list of strings that contains all artist names in the mpd db."
+  (mmpc-get-all-entries-for-tag "artist"))
+
+(defun mmpc-get-all-albums ()
+  "Return a list of strings that contains all album names in the mpd db."
+  (mmpc-get-all-entries-for-tag "album"))
+
+(defun mmpc-read-artist ()
+  "Read an artist from the mpd db."
+  (completing-read "Artist: "
+		   (mmpc-get-all-artists)
+		   nil
+		   t))
+
+(defun mmpc-read-album ()
+  "Read an album from the mpd db."
+  (completing-read "Album: "
+		   (mmpc-get-all-albums)
+		   nil
+		   t))
+
+(defun mmpc-get-path-from-resources (resources)
+  "Helper function to extract the file paths in RESOURCES"
+  (cl-remove-if 'null
+		(cl-map 'list (lambda (res)
+				(cond
+				 ((stringp res) res)
+				 ((listp res) (plist-get res 'file))
+				 (t nil)))
+			resources)))
+
+(defun mmpc-get-entities-for-artist (artist)
+  "Get all files from ARTIST with `mpd-search'"
+  (when-mmpc-connected
+    (mmpc-get-path-from-resources (mpd-search mmpc-connection 'artist artist))))
+
+(defun mmpc-get-entities-for-album (album)
+  "Get all files from ALBUM with `mpd-search'"
+  (when-mmpc-connected
+    (mmpc-get-path-from-resources (mpd-search mmpc-connection 'album album))))
+
 (defun mmpc-path-completion (partial)
   "Helper function to auto-complete path arguments for mmpc commands"
   (let* ((parts (split-string partial "/"))
@@ -109,10 +178,58 @@ Print \"not connected to mpd\" otherwise."
       (message nil)) ; to suppress the "connected to mpd" message
     result))
 
+(defun mmpc-read-path ()
+  (list
+    (completing-read "Path: "
+		     (dynamic-completion-table 'mmpc-path-completion)
+		     nil
+		     t)))
+
+(defconst mmpc-entities-to-read-function
+  '((artist . mmpc-read-artist)
+    (album . mmpc-read-album)
+    (path . mmpc-read-path))
+  "Alist associating entities type with read functions")
+
+(defconst mmpc-entities-to-get-function
+  '((artist . mmpc-get-entities-for-artist)
+    (album . mmpc-get-entities-for-album)
+    (path . identity))
+  "Alist associating entities type with get functions")
+
+(defun mmpc-read-entities ()
+  "Reads mpd entities from user input.
+First it reads the type of entity and then calls the corresponding
+read and get function."
+  (let* ((entity-type (mmpc-read-get-entities-method))
+	 (read-function (cdr (assoc entity-type mmpc-entities-to-read-function)))
+	 (get-function (cdr (assoc entity-type mmpc-entities-to-get-function))))
+    (when (and read-function get-function)
+      (funcall get-function (funcall read-function)))))
+
 (defun mmpc-clear-playlist ()
+  "Clear the mpd playlist."
   (interactive)
   (when-mmpc-connected
     (mpd-clear-playlist mmpc-connection)))
+
+(defun mmpc-add (resources)
+  "Add RESOURCES to the mpd playlist."
+  (interactive (list (mmpc-read-entities)))
+  (when-mmpc-connected
+    (mpd-enqueue mmpc-connection resources)))
+
+(defun mmpc-replace (resources)
+  "Replace mpd playlist with RESOURCES."
+  (interactive (list (mmpc-read-entities)))
+  (mmpc-clear-playlist)
+  (mmpc-add resources))
+
+(defun mmpc-replace-and-play (resources)
+  "Replace mpd playlist with RESOURCES and play."
+  (interactive (list (mmpc-read-entities)))
+  (mmpc-replace resources)
+  (mmpc-play))
 
 (defun mmpc-add-files (path)
   "Add all files in PATH to the mpd playlist.
@@ -121,7 +238,7 @@ PATH can be a directory to add all files in the directory
 or a single file."
   (interactive 
    (list
-    (completing-read "Path: " 
+    (completing-read "Path: "
 		     (dynamic-completion-table 'mmpc-path-completion)
 		     nil
 		     t)))
